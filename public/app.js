@@ -5,7 +5,7 @@ import {
   renderPosterSvg,
   summarizePoster,
   svgToPngObjectUrl
-} from "./poster-renderer.js";
+} from "./poster-renderer.js?v=20260605-real-qr";
 
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");
