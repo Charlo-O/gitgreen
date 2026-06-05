@@ -5,7 +5,7 @@ import {
   renderPosterSvg,
   summarizePoster,
   svgToPngObjectUrl
-} from "./poster-renderer.js?v=20260605-responsive-ratios";
+} from "./poster-renderer.js?v=20260605-adaptive-ratios";
 
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");

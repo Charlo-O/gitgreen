@@ -304,7 +304,7 @@ function renderResponsivePosterSvg(data, outputSize, context) {
   const preset = OUTPUT_PRESETS[outputSize];
   const layout = responsiveLayout(outputSize, preset, context.displayYears.length);
   const parts = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-output-size="${outputSize}" data-responsive-layout="true">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-output-size="${outputSize}" data-responsive-layout="true" data-layout-columns="${layout.columns}" data-layout-years="${context.displayYears.length}">`,
     defs(),
     rect(0, 0, layout.width, layout.height, "#ffffff"),
     responsiveHeader(data, context, layout),
@@ -329,7 +329,7 @@ function renderResponsivePosterSvg(data, outputSize, context) {
 
 function responsiveLayout(outputSize, preset, yearCount) {
   const isStory = outputSize === "ratio-9-16";
-  const columns = isStory ? (yearCount > 20 ? 2 : 1) : (yearCount > 18 ? 3 : 2);
+  const columns = isStory ? (yearCount > 20 ? 2 : 1) : threeFourColumnCount(yearCount);
   const margin = isStory ? 72 : 56;
   const headerHeight = isStory ? 350 : 306;
   const footerHeight = isStory ? 116 : 86;
@@ -362,6 +362,16 @@ function responsiveLayout(outputSize, preset, yearCount) {
     barsY: isStory ? 282 : 236,
     barsHeight: isStory ? 48 : 42
   };
+}
+
+function threeFourColumnCount(yearCount) {
+  if (yearCount <= 8) {
+    return 1;
+  }
+  if (yearCount <= 18) {
+    return 2;
+  }
+  return 3;
 }
 
 function responsiveHeader(data, context, layout) {
