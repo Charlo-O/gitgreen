@@ -267,13 +267,18 @@ export function formatPosterSvg(svg, outputSize = "original") {
   }
 
   const source = readSvgSize(svg);
-  const scale = preset.width / source.width;
+  const scale = Math.min(preset.width / source.width, preset.height / source.height);
+  const safeScale = Math.floor(scale * 10000) / 10000;
+  const scaledWidth = source.width * safeScale;
+  const scaledHeight = source.height * safeScale;
+  const x = (preset.width - scaledWidth) / 2;
+  const y = (preset.height - scaledHeight) / 2;
   const inner = readSvgInner(svg);
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${preset.width}" height="${preset.height}" viewBox="0 0 ${preset.width} ${preset.height}">`,
     rect(0, 0, preset.width, preset.height, "#ffffff"),
-    `<g transform="scale(${round(scale)})">`,
+    `<g transform="matrix(${safeScale} 0 0 ${safeScale} ${round(x)} ${round(y)})">`,
     inner,
     "</g>",
     "</svg>"

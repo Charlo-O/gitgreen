@@ -6,7 +6,7 @@ import {
   renderPosterSvg,
   summarizePoster,
   svgToPngObjectUrl
-} from "./poster-renderer.js?v=20260605-output-ratios";
+} from "./poster-renderer.js?v=20260605-fit-ratios";
 
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");
@@ -84,7 +84,7 @@ const I18N = {
     originalHighResolution: "原始尺寸",
     ratioThreeFour: "3:4 竖版",
     ratioNineSixteen: "9:16 竖版",
-    originalReadable: "默认保留完整长图，也可导出 3:4 或 9:16 竖版裁切。",
+    originalReadable: "默认保留完整长图，也可导出 3:4 或 9:16 竖版完整适配。",
     colorScale: "主题色阶",
     basedOnPublicCounts: "基于公开贡献数量生成。",
     options: "选项",
@@ -154,7 +154,7 @@ const I18N = {
     originalHighResolution: "Original size",
     ratioThreeFour: "3:4 portrait",
     ratioNineSixteen: "9:16 portrait",
-    originalReadable: "Default keeps the full poster. 3:4 and 9:16 export portrait crops.",
+    originalReadable: "Default keeps the full poster. 3:4 and 9:16 exports keep the complete poster visible.",
     colorScale: "Color scale",
     basedOnPublicCounts: "Based on public contribution counts.",
     options: "Options",
