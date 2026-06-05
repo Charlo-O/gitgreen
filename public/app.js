@@ -1,11 +1,12 @@
 import {
   createSvgObjectUrl,
   fetchAvatarDataUrl,
+  formatPosterSvg,
   normalizeContributionApiPayload,
   renderPosterSvg,
   summarizePoster,
   svgToPngObjectUrl
-} from "./poster-renderer.js?v=20260605-real-qr";
+} from "./poster-renderer.js?v=20260605-output-ratios";
 
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");
@@ -31,6 +32,7 @@ const stepExport = document.querySelector("#stepExport");
 const monthLabelsInput = document.querySelector("#monthLabelsInput");
 const totalsInput = document.querySelector("#totalsInput");
 const qrCodeInput = document.querySelector("#qrCodeInput");
+const outputSizeInput = document.querySelector("#outputSize");
 const API_BASE_URL = window.GITGREEN_API_BASE_URL ?? "";
 const CONTRIBUTIONS_API_BASE_URL = "https://github-contributions-api.jogruber.de/v4";
 
@@ -79,10 +81,10 @@ const I18N = {
     dateRange: "日期范围",
     generatedAfterFetch: "生成后显示",
     outputSize: "输出尺寸",
-    originalHighResolution: "原始高清",
-    socialCrop: "1080 x 2160 社交长图",
-    webExport: "1440 px 网页导出",
-    originalReadable: "原始尺寸能保持每一年都清晰可读。",
+    originalHighResolution: "原始尺寸",
+    ratioThreeFour: "3:4 竖版",
+    ratioNineSixteen: "9:16 竖版",
+    originalReadable: "默认保留完整长图，也可导出 3:4 或 9:16 竖版裁切。",
     colorScale: "主题色阶",
     basedOnPublicCounts: "基于公开贡献数量生成。",
     options: "选项",
@@ -149,10 +151,10 @@ const I18N = {
     dateRange: "Date range",
     generatedAfterFetch: "Generated after fetch",
     outputSize: "Output size",
-    originalHighResolution: "Original high resolution",
-    socialCrop: "1080 x 2160 social crop",
-    webExport: "1440 px wide web export",
-    originalReadable: "Original keeps every year readable.",
+    originalHighResolution: "Original size",
+    ratioThreeFour: "3:4 portrait",
+    ratioNineSixteen: "9:16 portrait",
+    originalReadable: "Default keeps the full poster. 3:4 and 9:16 export portrait crops.",
     colorScale: "Color scale",
     basedOnPublicCounts: "Based on public contribution counts.",
     options: "Options",
@@ -229,7 +231,7 @@ profileInput.addEventListener("input", () => {
   stepProfile.textContent = extractLogin(profileInput.value) || t("waiting");
 });
 
-[monthLabelsInput, totalsInput, qrCodeInput].forEach((input) => {
+[monthLabelsInput, totalsInput, qrCodeInput, outputSizeInput].forEach((input) => {
   input.addEventListener("change", () => {
     if (lastResult) {
       generatePoster();
@@ -251,7 +253,8 @@ async function generatePoster() {
     palette: document.querySelector("input[name='palette']:checked").value,
     showMonthLabels: monthLabelsInput.checked,
     showYearlyTotals: totalsInput.checked,
-    showQrCode: qrCodeInput.checked
+    showQrCode: qrCodeInput.checked,
+    outputSize: outputSizeInput.value
   };
 
   setGenerating(true);
@@ -323,7 +326,7 @@ async function generateBrowserPoster(payload) {
     },
     avatarDataUrl
   });
-  const svg = renderPosterSvg(data);
+  const svg = formatPosterSvg(renderPosterSvg(data), payload.outputSize);
   const svgUrl = createSvgObjectUrl(svg);
   const pngUrl = await svgToPngObjectUrl(svg, 2);
   const summary = summarizePoster(data);
@@ -344,6 +347,7 @@ async function generateBrowserPoster(payload) {
     },
     source: "browser-public-api",
     generatedAt: data.generatedAt,
+    outputSize: payload.outputSize,
     objectUrls: [svgUrl, pngUrl]
   };
 }
@@ -405,8 +409,11 @@ function renderResult(result) {
 
   downloadPng.href = assetUrl(result.files.png);
   downloadSvg.href = assetUrl(result.files.svg);
-  downloadPng.download = `${result.user.login}-github-contributions.png`;
-  downloadSvg.download = `${result.user.login}-github-contributions.svg`;
+  const outputSuffix = result.outputSize && result.outputSize !== "original"
+    ? `-${result.outputSize.replace("ratio-", "")}`
+    : "";
+  downloadPng.download = `${result.user.login}-github-contributions${outputSuffix}.png`;
+  downloadSvg.download = `${result.user.login}-github-contributions${outputSuffix}.svg`;
   downloadPng.classList.remove("disabled");
   downloadSvg.classList.remove("disabled");
 

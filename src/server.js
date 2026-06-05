@@ -8,7 +8,7 @@ import {
   fetchPublicGithubContributionData,
   normalizeGithubLogin
 } from "./github.js";
-import { renderPosterSvg, writePosterFiles } from "./render.js";
+import { formatPosterSvg, renderPosterSvg, writePosterFiles } from "./render.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
@@ -64,6 +64,7 @@ app.post("/api/generate", async (request, response) => {
     const showMonthLabels = request.body.showMonthLabels !== false;
     const showYearlyTotals = request.body.showYearlyTotals !== false;
     const showQrCode = request.body.showQrCode !== false;
+    const outputSize = normalizeOutputSize(request.body.outputSize);
 
     if (!login) {
       throw new Error("Paste a GitHub username or profile URL first.");
@@ -84,7 +85,7 @@ app.post("/api/generate", async (request, response) => {
       ? await fetchAvatarDataUrl(data.avatarUrl).catch(() => null)
       : null;
 
-    const svg = renderPosterSvg(data);
+    const svg = formatPosterSvg(renderPosterSvg(data), outputSize);
     const id = `${data.login}-${new Date().toISOString().replace(/[:.]/g, "-")}-${crypto
       .randomBytes(3)
       .toString("hex")}`;
@@ -115,7 +116,8 @@ app.post("/api/generate", async (request, response) => {
       summary: summarize(data),
       files,
       source: "public",
-      generatedAt: data.generatedAt
+      generatedAt: data.generatedAt,
+      outputSize
     });
   } catch (error) {
     console.error(`Generate failed: ${error.message}`);
@@ -195,6 +197,10 @@ function cleanText(value, maxLength) {
   }
 
   return value.trim().slice(0, maxLength);
+}
+
+function normalizeOutputSize(value) {
+  return ["ratio-3-4", "ratio-9-16"].includes(value) ? value : "original";
 }
 
 function absoluteUrl(request, pathname) {

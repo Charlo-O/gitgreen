@@ -10,6 +10,10 @@ const GRID_STEP = GRID_CELL + GRID_GAP;
 
 const DEFAULT_PALETTE = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
 const QR_CODE_URL = "https://gitgreen.me";
+const OUTPUT_PRESETS = {
+  "ratio-3-4": { width: 1200, height: 1600 },
+  "ratio-9-16": { width: 1440, height: 2560 }
+};
 const QR_CODE_ROWS = [
   "11111110001100011101101111111",
   "10000010110000111010101000001",
@@ -256,6 +260,26 @@ export function renderPosterSvg(data) {
   return parts.join("");
 }
 
+export function formatPosterSvg(svg, outputSize = "original") {
+  const preset = OUTPUT_PRESETS[outputSize];
+  if (!preset) {
+    return svg;
+  }
+
+  const source = readSvgSize(svg);
+  const scale = preset.width / source.width;
+  const inner = readSvgInner(svg);
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${preset.width}" height="${preset.height}" viewBox="0 0 ${preset.width} ${preset.height}">`,
+    rect(0, 0, preset.width, preset.height, "#ffffff"),
+    `<g transform="scale(${round(scale)})">`,
+    inner,
+    "</g>",
+    "</svg>"
+  ].join("");
+}
+
 export async function fetchAvatarDataUrl(url) {
   const response = await fetch(url, { mode: "cors" });
   if (!response.ok) {
@@ -398,7 +422,7 @@ function header(data, summary, thresholds, palette, options, copy, lang) {
       size: 17,
       fill: "#6e7781"
     }),
-    options.showQrCode ? realQr(QR_CODE_URL, palette, 1200, 42, 111) : "",
+    options.showQrCode ? realQr(QR_CODE_URL, palette, 1198, 36, 116, copy.qrLabel) : "",
     metricCard(72, 176, 292, copy.totalContributions, formatNumber(summary.total), copy.acrossYears),
     metricCard(384, 176, 292, copy.activeDays, formatNumber(summary.activeDays), copy.daysWithContributions),
     metricCard(696, 176, 292, copy.bestYear, `${summary.bestYear.year}`, `${formatNumber(summary.bestYear.totalContributions)} ${copy.contributions}`),
@@ -652,7 +676,7 @@ function quantile(values, point) {
   return values[index];
 }
 
-function realQr(url, palette, x, y, size) {
+function realQr(url, palette, x, y, size, label) {
   const rows = QR_CODE_ROWS;
   const quiet = 4;
   const moduleCount = rows.length;
@@ -679,6 +703,12 @@ function realQr(url, palette, x, y, size) {
   });
 
   parts.push("</g>");
+  parts.push(text(label, x + size / 2, y + size + 18, {
+    size: 13,
+    weight: 800,
+    fill,
+    anchor: "middle"
+  }));
   return parts.join("");
 }
 
@@ -757,6 +787,12 @@ function readSvgSize(svg) {
   const width = Number(svg.match(/\bwidth="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
   const height = Number(svg.match(/\bheight="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
   return { width, height };
+}
+
+function readSvgInner(svg) {
+  return svg
+    .replace(/^[\s\S]*?<svg\b[^>]*>/i, "")
+    .replace(/<\/svg>\s*$/i, "");
 }
 
 function round(value) {

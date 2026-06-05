@@ -15,6 +15,10 @@ const GRID_STEP = GRID_CELL + GRID_GAP;
 const GRID_HEIGHT = GRID_CELL * 7 + GRID_GAP * 6;
 
 const DEFAULT_PALETTE = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+const OUTPUT_PRESETS = {
+  "ratio-3-4": { width: 1200, height: 1600 },
+  "ratio-9-16": { width: 1440, height: 2560 }
+};
 const MONTHS = {
   en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
   zh: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
@@ -55,7 +59,7 @@ const COPY = {
     generatedGraphql: "Generated from GitHub contributionCalendar data.",
     generated: "Generated",
     partialFooter: "is partial through",
-    qrLabel: "www.gitgreen.me"
+    qrLabel: "gitgreen.me"
   },
   zh: {
     titleSuffix: "的 GitHub 贡献",
@@ -91,7 +95,7 @@ const COPY = {
     generatedGraphql: "由 GitHub contributionCalendar 数据生成。",
     generated: "生成日期",
     partialFooter: "截至",
-    qrLabel: "www.gitgreen.me"
+    qrLabel: "gitgreen.me"
   }
 };
 
@@ -133,6 +137,26 @@ export function renderPosterSvg(data) {
   parts.push("</svg>");
 
   return parts.join("");
+}
+
+export function formatPosterSvg(svg, outputSize = "original") {
+  const preset = OUTPUT_PRESETS[outputSize];
+  if (!preset) {
+    return svg;
+  }
+
+  const source = readSvgSize(svg);
+  const scale = preset.width / source.width;
+  const inner = readSvgInner(svg);
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${preset.width}" height="${preset.height}" viewBox="0 0 ${preset.width} ${preset.height}">`,
+    rect(0, 0, preset.width, preset.height, "#ffffff"),
+    `<g transform="scale(${round(scale)})">`,
+    inner,
+    "</g>",
+    "</svg>"
+  ].join("");
 }
 
 export async function writePosterFiles({ svg, outPath, format, pixelRatio }) {
@@ -187,7 +211,7 @@ function header(data, summary, thresholds, palette, options, copy, lang) {
       size: 17,
       fill: "#6e7781"
     }),
-    options.showQrCode ? realQr("https://gitgreen.me", palette, 1200, 42, 111) : "",
+    options.showQrCode ? realQr("https://gitgreen.me", palette, 1198, 36, 116, copy.qrLabel) : "",
     metricCard(72, 176, 292, copy.totalContributions, formatNumber(summary.total), copy.acrossYears),
     metricCard(384, 176, 292, copy.activeDays, formatNumber(summary.activeDays), copy.daysWithContributions),
     metricCard(696, 176, 292, copy.bestYear, `${summary.bestYear.year}`, `${formatNumber(summary.bestYear.totalContributions)} ${copy.contributions}`),
@@ -488,7 +512,7 @@ function quantile(values, point) {
   return values[index];
 }
 
-function realQr(url, palette, x, y, size) {
+function realQr(url, palette, x, y, size, label) {
   const qr = QRCode.create(url, {
     errorCorrectionLevel: "H"
   });
@@ -518,6 +542,12 @@ function realQr(url, palette, x, y, size) {
   }
 
   parts.push("</g>");
+  parts.push(text(label, x + size / 2, y + size + 18, {
+    size: 13,
+    weight: 800,
+    fill,
+    anchor: "middle"
+  }));
   return parts.join("");
 }
 
@@ -590,6 +620,18 @@ function escapeXml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function readSvgSize(svg) {
+  const width = Number(svg.match(/\bwidth="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
+  const height = Number(svg.match(/\bheight="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
+  return { width, height };
+}
+
+function readSvgInner(svg) {
+  return svg
+    .replace(/^[\s\S]*?<svg\b[^>]*>/i, "")
+    .replace(/<\/svg>\s*$/i, "");
 }
 
 function round(value) {
