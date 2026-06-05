@@ -21,6 +21,7 @@ const stepPalette = document.querySelector("#stepPalette");
 const stepExport = document.querySelector("#stepExport");
 const monthLabelsInput = document.querySelector("#monthLabelsInput");
 const totalsInput = document.querySelector("#totalsInput");
+const API_BASE_URL = window.GITGREEN_API_BASE_URL ?? "";
 
 const I18N = {
   zh: {
@@ -87,6 +88,8 @@ const I18N = {
     needsAttention: "需要处理",
     fetchedPublicData: "已抓取公开数据",
     exportReady: "可导出",
+    backendUnavailable: "后端服务未部署",
+    backendUnavailableDetail: "GitHub Pages 不能运行生成接口，请先部署 API 或在本地运行 npm run web。",
     contributionsAcrossYears: (total, years) => `${total} 次贡献，跨 ${years} 年`,
     yearsAndContributions: (years, total) => `${years} 年 · ${total} 次贡献`
   },
@@ -154,6 +157,8 @@ const I18N = {
     needsAttention: "Needs attention",
     fetchedPublicData: "Fetched public data",
     exportReady: "Export-ready",
+    backendUnavailable: "Backend is not deployed",
+    backendUnavailableDetail: "GitHub Pages cannot run the generation API. Deploy the API first or run npm run web locally.",
     contributionsAcrossYears: (total, years) => `${total} contributions across ${years} years`,
     yearsAndContributions: (years, total) => `${years} years · ${total} contributions`
   }
@@ -211,6 +216,16 @@ async function generatePoster() {
     return;
   }
 
+  if (isStaticPagesHost()) {
+    setWorkflow("input");
+    setStatus(t("backendUnavailable"), t("backendUnavailableDetail"), "error");
+    stepStatus.textContent = t("backendUnavailable");
+    stepStatus.classList.remove("success");
+    stepExport.textContent = t("tryAgain");
+    exportBadge.textContent = t("needsAttention");
+    return;
+  }
+
   const payload = {
     profile,
     language: currentLanguage(),
@@ -231,14 +246,14 @@ async function generatePoster() {
   exportBadge.textContent = t("generating");
 
   try {
-    const response = await fetch("/api/generate", {
+    const response = await fetch(`${API_BASE_URL}/api/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
     });
-    const body = await response.json();
+    const body = await readJsonResponse(response);
 
     if (!response.ok || !body.ok) {
       throw new Error(body.message || "Could not generate poster.");
@@ -382,6 +397,29 @@ function t(key) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat(currentLanguage() === "zh" ? "zh-CN" : "en-US").format(value);
+}
+
+function isStaticPagesHost() {
+  if (API_BASE_URL) {
+    return false;
+  }
+
+  return ["gitgreen.me", "www.gitgreen.me", "charlo-o.github.io"].includes(window.location.hostname);
+}
+
+async function readJsonResponse(response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  const summary = text.replace(/\s+/g, " ").trim().slice(0, 120);
+  throw new Error(
+    response.status === 405
+      ? t("backendUnavailableDetail")
+      : `Unexpected response from server: ${summary || response.statusText}`
+  );
 }
 
 applyLanguage();
