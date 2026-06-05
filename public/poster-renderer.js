@@ -9,6 +9,38 @@ const GRID_GAP = 3;
 const GRID_STEP = GRID_CELL + GRID_GAP;
 
 const DEFAULT_PALETTE = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+const QR_CODE_URL = "https://gitgreen.me";
+const QR_CODE_ROWS = [
+  "11111110001100011101101111111",
+  "10000010110000111010101000001",
+  "10111010101000100111101011101",
+  "10111010111000011110101011101",
+  "10111010101101101010001011101",
+  "10000010110000011110101000001",
+  "11111110101010101010101111111",
+  "00000000011001000100000000000",
+  "00100111100110000100110111110",
+  "10011000101001000100101101011",
+  "11111010101011111100110010101",
+  "10011100110001111111101111000",
+  "11011010110110001000111001010",
+  "10111101011111001011101001001",
+  "00010011001100011011001001101",
+  "11110001100110100111110001001",
+  "10101111100000111001011100011",
+  "01001000110001111010000101001",
+  "11110010101011011111000100101",
+  "00101101010001000000011111011",
+  "11111010011000010101111111011",
+  "00000000101100101000100011011",
+  "11111110100001010110101011101",
+  "10000010110001000001100011011",
+  "10111010001011111001111110001",
+  "10111010011010111011100111110",
+  "10111010101111111100010011011",
+  "10000010011101100110011000000",
+  "11111110000100000010010111001"
+];
 const MONTHS = {
   en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
   zh: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
@@ -145,6 +177,7 @@ export function normalizeContributionApiPayload({
       language,
       showMonthLabels: true,
       showYearlyTotals: true,
+      showQrCode: true,
       sortNewestFirst: true,
       ...options
     },
@@ -190,6 +223,7 @@ export function renderPosterSvg(data) {
   const options = {
     showMonthLabels: true,
     showYearlyTotals: true,
+    showQrCode: true,
     sortNewestFirst: true,
     language: activeLanguage,
     ...(data.options ?? {})
@@ -364,7 +398,7 @@ function header(data, summary, thresholds, palette, options, copy, lang) {
       size: 17,
       fill: "#6e7781"
     }),
-    stylizedQr("https://gitgreen.me", palette, 1190, 42, 108, copy.qrLabel),
+    options.showQrCode ? realQr(QR_CODE_URL, palette, 1200, 42, 111) : "",
     metricCard(72, 176, 292, copy.totalContributions, formatNumber(summary.total), copy.acrossYears),
     metricCard(384, 176, 292, copy.activeDays, formatNumber(summary.activeDays), copy.daysWithContributions),
     metricCard(696, 176, 292, copy.bestYear, `${summary.bestYear.year}`, `${formatNumber(summary.bestYear.totalContributions)} ${copy.contributions}`),
@@ -618,68 +652,34 @@ function quantile(values, point) {
   return values[index];
 }
 
-function stylizedQr(url, palette, x, y, size, label) {
-  const moduleCount = 25;
-  const quiet = 2;
-  const totalModules = moduleCount + quiet * 2;
-  const cell = size / totalModules;
-  const accent = palette[4] ?? "#216e39";
-  const mid = palette[3] ?? accent;
-  const light = palette[1] ?? "#9be9a8";
-  const seed = hashString(url);
+function realQr(url, palette, x, y, size) {
+  const rows = QR_CODE_ROWS;
+  const quiet = 4;
+  const moduleCount = rows.length;
+  const cell = size / (moduleCount + quiet * 2);
+  const fill = palette[4] ?? "#1f2328";
   const parts = [
-    rect(x - 12, y - 12, size + 24, size + 44, "#f6f8fa", "#d0d7de", 1, 12),
-    rect(x, y, size, size, "#ffffff", null, 1, 10)
+    `<g data-qr-url="${escapeXml(url)}">`
   ];
 
-  for (let row = 0; row < moduleCount; row += 1) {
-    for (let col = 0; col < moduleCount; col += 1) {
-      if (isFinderModule(row, col, moduleCount)) {
-        continue;
-      }
-      const bit = (seed + row * 31 + col * 17 + row * col) % 7;
-      if (bit > 2) {
+  rows.forEach((row, rowIndex) => {
+    for (let colIndex = 0; colIndex < row.length; colIndex += 1) {
+      if (row[colIndex] !== "1") {
         continue;
       }
 
-      const moduleX = x + (col + quiet) * cell;
-      const moduleY = y + (row + quiet) * cell;
-      const fill = bit === 0 ? mid : accent;
-      parts.push(circle(moduleX + cell * 0.5, moduleY + cell * 0.5, cell * 0.32, fill));
+      parts.push(rect(
+        x + (colIndex + quiet) * cell,
+        y + (rowIndex + quiet) * cell,
+        cell,
+        cell,
+        fill
+      ));
     }
-  }
+  });
 
-  parts.push(...qrEye(x + quiet * cell, y + quiet * cell, cell * 7, accent, mid, light));
-  parts.push(...qrEye(x + (quiet + moduleCount - 7) * cell, y + quiet * cell, cell * 7, accent, mid, light));
-  parts.push(...qrEye(x + quiet * cell, y + (quiet + moduleCount - 7) * cell, cell * 7, accent, mid, light));
-  parts.push(rect(x + size * 0.37, y + size * 0.37, size * 0.26, size * 0.26, "#ffffff", null, 1, 8));
-  parts.push(circle(x + size / 2, y + size / 2, size * 0.075, light));
-  parts.push(text(label, x + size / 2, y + size + 25, {
-    size: 12,
-    weight: 800,
-    fill: accent,
-    anchor: "middle"
-  }));
-
+  parts.push("</g>");
   return parts.join("");
-}
-
-function isFinderModule(row, col, size) {
-  const inTopLeft = row < 7 && col < 7;
-  const inTopRight = row < 7 && col >= size - 7;
-  const inBottomLeft = row >= size - 7 && col < 7;
-  return inTopLeft || inTopRight || inBottomLeft;
-}
-
-function qrEye(x, y, size, accent, mid, light) {
-  const cx = x + size / 2;
-  const cy = y + size / 2;
-  return [
-    circle(cx, cy, size * 0.46, accent),
-    circle(cx, cy, size * 0.34, "#ffffff"),
-    circle(cx, cy, size * 0.2, mid),
-    circle(cx, cy, size * 0.07, light)
-  ];
 }
 
 function formatDelta(delta, previousTotal, copy) {
@@ -757,14 +757,6 @@ function readSvgSize(svg) {
   const width = Number(svg.match(/\bwidth="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
   const height = Number(svg.match(/\bheight="(\d+(?:\.\d+)?)"/)?.[1] ?? WIDTH);
   return { width, height };
-}
-
-function hashString(value) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
 }
 
 function round(value) {

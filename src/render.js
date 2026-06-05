@@ -101,6 +101,7 @@ export function renderPosterSvg(data) {
   const options = {
     showMonthLabels: true,
     showYearlyTotals: true,
+    showQrCode: true,
     sortNewestFirst: true,
     language: data.language ?? "zh",
     ...(data.options ?? {})
@@ -186,7 +187,7 @@ function header(data, summary, thresholds, palette, options, copy, lang) {
       size: 17,
       fill: "#6e7781"
     }),
-    stylizedQr("https://www.gitgreen.me", palette, 1190, 42, 108, copy.qrLabel),
+    options.showQrCode ? realQr("https://gitgreen.me", palette, 1200, 42, 111) : "",
     metricCard(72, 176, 292, copy.totalContributions, formatNumber(summary.total), copy.acrossYears),
     metricCard(384, 176, 292, copy.activeDays, formatNumber(summary.activeDays), copy.daysWithContributions),
     metricCard(696, 176, 292, copy.bestYear, `${summary.bestYear.year}`, `${formatNumber(summary.bestYear.totalContributions)} ${copy.contributions}`),
@@ -487,20 +488,17 @@ function quantile(values, point) {
   return values[index];
 }
 
-function stylizedQr(url, palette, x, y, size, label) {
+function realQr(url, palette, x, y, size) {
   const qr = QRCode.create(url, {
     errorCorrectionLevel: "H"
   });
   const moduleCount = qr.modules.size;
-  const quiet = 2;
+  const quiet = 4;
   const totalModules = moduleCount + quiet * 2;
   const cell = size / totalModules;
-  const accent = palette[4] ?? "#216e39";
-  const mid = palette[3] ?? accent;
-  const light = palette[1] ?? "#9be9a8";
+  const fill = palette[4] ?? "#1f2328";
   const parts = [
-    rect(x - 12, y - 12, size + 24, size + 44, "#f6f8fa", "#d0d7de", 1, 12),
-    rect(x, y, size, size, "#ffffff", null, 1, 10)
+    `<g data-qr-url="${escapeXml(url)}">`
   ];
 
   for (let row = 0; row < moduleCount; row += 1) {
@@ -509,50 +507,18 @@ function stylizedQr(url, palette, x, y, size, label) {
         continue;
       }
 
-      if (isFinderModule(row, col, moduleCount)) {
-        continue;
-      }
-
-      const moduleX = x + (col + quiet) * cell;
-      const moduleY = y + (row + quiet) * cell;
-      const rhythm = (row * 13 + col * 7) % 5;
-      const fill = rhythm === 0 ? mid : accent;
-      const radius = cell * (0.26 + rhythm * 0.025);
-      parts.push(circle(moduleX + cell * 0.5, moduleY + cell * 0.5, radius, fill));
+      parts.push(rect(
+        x + (col + quiet) * cell,
+        y + (row + quiet) * cell,
+        cell,
+        cell,
+        fill
+      ));
     }
   }
 
-  parts.push(...qrEye(x + quiet * cell, y + quiet * cell, cell * 7, accent, mid, light));
-  parts.push(...qrEye(x + (quiet + moduleCount - 7) * cell, y + quiet * cell, cell * 7, accent, mid, light));
-  parts.push(...qrEye(x + quiet * cell, y + (quiet + moduleCount - 7) * cell, cell * 7, accent, mid, light));
-  parts.push(rect(x + size * 0.37, y + size * 0.37, size * 0.26, size * 0.26, "#ffffff", null, 1, 8));
-  parts.push(circle(x + size / 2, y + size / 2, size * 0.075, light));
-  parts.push(text(label, x + size / 2, y + size + 25, {
-    size: 12,
-    weight: 800,
-    fill: accent,
-    anchor: "middle"
-  }));
-
+  parts.push("</g>");
   return parts.join("");
-}
-
-function isFinderModule(row, col, size) {
-  const inTopLeft = row < 7 && col < 7;
-  const inTopRight = row < 7 && col >= size - 7;
-  const inBottomLeft = row >= size - 7 && col < 7;
-  return inTopLeft || inTopRight || inBottomLeft;
-}
-
-function qrEye(x, y, size, accent, mid, light) {
-  const cx = x + size / 2;
-  const cy = y + size / 2;
-  return [
-    circle(cx, cy, size * 0.46, accent),
-    circle(cx, cy, size * 0.34, "#ffffff"),
-    circle(cx, cy, size * 0.2, mid),
-    circle(cx, cy, size * 0.07, light)
-  ];
 }
 
 function formatDelta(delta, previousTotal, copy) {

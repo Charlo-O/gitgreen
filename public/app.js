@@ -30,6 +30,7 @@ const stepPalette = document.querySelector("#stepPalette");
 const stepExport = document.querySelector("#stepExport");
 const monthLabelsInput = document.querySelector("#monthLabelsInput");
 const totalsInput = document.querySelector("#totalsInput");
+const qrCodeInput = document.querySelector("#qrCodeInput");
 const API_BASE_URL = window.GITGREEN_API_BASE_URL ?? "";
 const CONTRIBUTIONS_API_BASE_URL = "https://github-contributions-api.jogruber.de/v4";
 
@@ -87,6 +88,7 @@ const I18N = {
     options: "选项",
     showMonthLabels: "显示月份标签",
     showYearlyTotals: "显示年度总览",
+    showQrCode: "显示二维码",
     downloadPng: "下载 PNG",
     downloadSvg: "下载 SVG",
     downloadNote: "高清输出 · 仅公开数据",
@@ -156,6 +158,7 @@ const I18N = {
     options: "Options",
     showMonthLabels: "Show month labels",
     showYearlyTotals: "Show yearly totals",
+    showQrCode: "Show QR code",
     downloadPng: "Download PNG",
     downloadSvg: "Download SVG",
     downloadNote: "High resolution · Public data only",
@@ -226,6 +229,14 @@ profileInput.addEventListener("input", () => {
   stepProfile.textContent = extractLogin(profileInput.value) || t("waiting");
 });
 
+[monthLabelsInput, totalsInput, qrCodeInput].forEach((input) => {
+  input.addEventListener("change", () => {
+    if (lastResult) {
+      generatePoster();
+    }
+  });
+});
+
 async function generatePoster() {
   const profile = profileInput.value.trim();
   if (!profile) {
@@ -239,7 +250,8 @@ async function generatePoster() {
     title: titleInput.value,
     palette: document.querySelector("input[name='palette']:checked").value,
     showMonthLabels: monthLabelsInput.checked,
-    showYearlyTotals: totalsInput.checked
+    showYearlyTotals: totalsInput.checked,
+    showQrCode: qrCodeInput.checked
   };
 
   setGenerating(true);
@@ -306,6 +318,7 @@ async function generateBrowserPoster(payload) {
       language: payload.language,
       showMonthLabels: payload.showMonthLabels,
       showYearlyTotals: payload.showYearlyTotals,
+      showQrCode: payload.showQrCode,
       sortNewestFirst: true
     },
     avatarDataUrl

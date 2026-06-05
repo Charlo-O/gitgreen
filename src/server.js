@@ -63,6 +63,7 @@ app.post("/api/generate", async (request, response) => {
     const title = cleanText(request.body.title, 64);
     const showMonthLabels = request.body.showMonthLabels !== false;
     const showYearlyTotals = request.body.showYearlyTotals !== false;
+    const showQrCode = request.body.showQrCode !== false;
 
     if (!login) {
       throw new Error("Paste a GitHub username or profile URL first.");
@@ -76,6 +77,7 @@ app.post("/api/generate", async (request, response) => {
       language,
       showMonthLabels,
       showYearlyTotals,
+      showQrCode,
       sortNewestFirst: true
     };
     data.avatarDataUrl = data.avatarUrl
