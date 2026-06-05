@@ -1,3 +1,12 @@
+import {
+  createSvgObjectUrl,
+  fetchAvatarDataUrl,
+  normalizeContributionApiPayload,
+  renderPosterSvg,
+  summarizePoster,
+  svgToPngObjectUrl
+} from "./poster-renderer.js";
+
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");
 const generateButton = document.querySelector("#generateButton");
@@ -22,6 +31,13 @@ const stepExport = document.querySelector("#stepExport");
 const monthLabelsInput = document.querySelector("#monthLabelsInput");
 const totalsInput = document.querySelector("#totalsInput");
 const API_BASE_URL = window.GITGREEN_API_BASE_URL ?? "";
+const CONTRIBUTIONS_API_BASE_URL = "https://github-contributions-api.jogruber.de/v4";
+
+const PALETTES = {
+  github: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
+  ocean: ["#ebedf0", "#dff6ff", "#9bd8ee", "#43a6d7", "#006b9a"],
+  violet: ["#ebedf0", "#eee7fb", "#d2b8f0", "#9a6dd7", "#5b2b91"]
+};
 
 const I18N = {
   zh: {
@@ -167,6 +183,7 @@ const I18N = {
 let zoom = 0.72;
 let lastResult = null;
 let titleTouched = false;
+let resultObjectUrls = [];
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -216,16 +233,6 @@ async function generatePoster() {
     return;
   }
 
-  if (isStaticPagesHost()) {
-    setWorkflow("input");
-    setStatus(t("backendUnavailable"), t("backendUnavailableDetail"), "error");
-    stepStatus.textContent = t("backendUnavailable");
-    stepStatus.classList.remove("success");
-    stepExport.textContent = t("tryAgain");
-    exportBadge.textContent = t("needsAttention");
-    return;
-  }
-
   const payload = {
     profile,
     language: currentLanguage(),
@@ -246,21 +253,11 @@ async function generatePoster() {
   exportBadge.textContent = t("generating");
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/generate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-    const body = await readJsonResponse(response);
+    const body = shouldUseBrowserGenerator()
+      ? await generateBrowserPoster(payload)
+      : await generateServerPoster(payload);
 
-    if (!response.ok || !body.ok) {
-      throw new Error(body.message || "Could not generate poster.");
-    }
-
-    lastResult = body;
-    renderResult(body);
+    replaceResult(body);
   } catch (error) {
     setWorkflow("input");
     setStatus(t("generationFailed"), error.message, "error");
@@ -273,16 +270,128 @@ async function generatePoster() {
   }
 }
 
+async function generateServerPoster(payload) {
+  const response = await fetch(`${API_BASE_URL}/api/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await readJsonResponse(response);
+
+  if (!response.ok || !body.ok) {
+    throw new Error(body.message || "Could not generate poster.");
+  }
+
+  return body;
+}
+
+async function generateBrowserPoster(payload) {
+  const login = normalizeGithubLogin(payload.profile);
+  const [user, contributionPayload] = await Promise.all([
+    fetchGithubUser(login),
+    fetchContributionHistory(login)
+  ]);
+  const avatarDataUrl = user.avatar_url
+    ? await fetchAvatarDataUrl(user.avatar_url).catch(() => null)
+    : null;
+  const data = normalizeContributionApiPayload({
+    user,
+    contributionPayload,
+    language: payload.language,
+    title: cleanTitle(payload.title),
+    palette: PALETTES[payload.palette] ?? PALETTES.github,
+    options: {
+      language: payload.language,
+      showMonthLabels: payload.showMonthLabels,
+      showYearlyTotals: payload.showYearlyTotals,
+      sortNewestFirst: true
+    },
+    avatarDataUrl
+  });
+  const svg = renderPosterSvg(data);
+  const svgUrl = createSvgObjectUrl(svg);
+  const pngUrl = await svgToPngObjectUrl(svg, 2);
+  const summary = summarizePoster(data);
+
+  return {
+    ok: true,
+    user: {
+      login: data.login,
+      name: data.name,
+      avatarUrl: data.avatarUrl,
+      url: data.url,
+      createdAt: data.createdAt
+    },
+    summary,
+    files: {
+      svg: svgUrl,
+      png: pngUrl
+    },
+    source: "browser-public-api",
+    generatedAt: data.generatedAt,
+    objectUrls: [svgUrl, pngUrl]
+  };
+}
+
+async function fetchGithubUser(login) {
+  const response = await fetch(`https://api.github.com/users/${encodeURIComponent(login)}`, {
+    headers: {
+      Accept: "application/vnd.github+json"
+    }
+  });
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = body?.message ? `: ${body.message}` : "";
+    throw new Error(`GitHub user request failed with HTTP ${response.status}${message}`);
+  }
+
+  return body;
+}
+
+async function fetchContributionHistory(login) {
+  const response = await fetch(`${CONTRIBUTIONS_API_BASE_URL}/${encodeURIComponent(login)}`, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = body?.error || body?.message;
+    throw new Error(message || `Contribution history request failed with HTTP ${response.status}`);
+  }
+
+  return body;
+}
+
+function replaceResult(result) {
+  cleanupResultObjectUrls();
+  lastResult = result;
+  resultObjectUrls = result.objectUrls ?? [];
+  renderResult(result);
+}
+
+function cleanupResultObjectUrls() {
+  for (const url of resultObjectUrls) {
+    URL.revokeObjectURL(url);
+  }
+  resultObjectUrls = [];
+}
+
 function renderResult(result) {
   const summary = result.summary;
   const stamp = Date.now();
 
   emptyPreview.hidden = true;
   posterPreview.hidden = false;
-  posterPreview.src = `${result.files.svg}?t=${stamp}`;
+  const previewUrl = assetUrl(result.files.svg);
+  posterPreview.src = previewUrl.startsWith("blob:") ? previewUrl : `${previewUrl}?t=${stamp}`;
 
-  downloadPng.href = result.files.png;
-  downloadSvg.href = result.files.svg;
+  downloadPng.href = assetUrl(result.files.png);
+  downloadSvg.href = assetUrl(result.files.svg);
   downloadPng.download = `${result.user.login}-github-contributions.png`;
   downloadSvg.download = `${result.user.login}-github-contributions.svg`;
   downloadPng.classList.remove("disabled");
@@ -371,6 +480,18 @@ function setZoom(value) {
   zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
 }
 
+function normalizeGithubLogin(value) {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/?/i);
+  const login = match ? match[1] : trimmed.replace(/^@/, "");
+
+  if (!/^[A-Za-z0-9-]+$/.test(login)) {
+    throw new Error(`Invalid GitHub username or profile URL: ${value}`);
+  }
+
+  return login;
+}
+
 function extractLogin(value) {
   const trimmed = value.trim();
   const match = trimmed.match(/^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/?/i);
@@ -399,12 +520,30 @@ function formatNumber(value) {
   return new Intl.NumberFormat(currentLanguage() === "zh" ? "zh-CN" : "en-US").format(value);
 }
 
+function assetUrl(value) {
+  if (!value || !API_BASE_URL || !value.startsWith("/")) {
+    return value;
+  }
+
+  return `${API_BASE_URL}${value}`;
+}
+
+function shouldUseBrowserGenerator() {
+  return window.GITGREEN_FORCE_BROWSER_GENERATOR === true
+    || new URLSearchParams(window.location.search).has("static")
+    || isStaticPagesHost();
+}
+
 function isStaticPagesHost() {
   if (API_BASE_URL) {
     return false;
   }
 
   return ["gitgreen.me", "www.gitgreen.me", "charlo-o.github.io"].includes(window.location.hostname);
+}
+
+function cleanTitle(value) {
+  return typeof value === "string" ? value.trim().slice(0, 64) : "";
 }
 
 async function readJsonResponse(response) {

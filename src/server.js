@@ -13,7 +13,9 @@ import { renderPosterSvg, writePosterFiles } from "./render.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
-const outputDir = path.join(projectRoot, "dist", "studio");
+const outputDir = process.env.OUTPUT_DIR
+  ? path.resolve(process.env.OUTPUT_DIR)
+  : path.join(projectRoot, "dist", "studio");
 
 const PALETTES = {
   github: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
@@ -30,6 +32,18 @@ const app = express();
 const port = Number(process.env.PORT ?? 4173);
 const contributionCache = new Map();
 
+app.use((request, response, next) => {
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (request.method === "OPTIONS") {
+    response.status(204).end();
+    return;
+  }
+
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(publicDir));
 app.use("/output", express.static(outputDir));
@@ -83,7 +97,7 @@ app.post("/api/generate", async (request, response) => {
     const files = Object.fromEntries(
       written.map((filePath) => [
         path.extname(filePath).slice(1),
-        `/output/${path.basename(filePath)}`
+        absoluteUrl(request, `/output/${path.basename(filePath)}`)
       ])
     );
 
@@ -179,4 +193,15 @@ function cleanText(value, maxLength) {
   }
 
   return value.trim().slice(0, maxLength);
+}
+
+function absoluteUrl(request, pathname) {
+  const configured = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "");
+  if (configured) {
+    return `${configured}${pathname}`;
+  }
+
+  const protocol = request.headers["x-forwarded-proto"] ?? request.protocol;
+  const host = request.headers["x-forwarded-host"] ?? request.headers.host;
+  return `${protocol}://${host}${pathname}`;
 }
