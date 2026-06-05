@@ -1,12 +1,11 @@
 import {
   createSvgObjectUrl,
   fetchAvatarDataUrl,
-  formatPosterSvg,
   normalizeContributionApiPayload,
   renderPosterSvg,
   summarizePoster,
   svgToPngObjectUrl
-} from "./poster-renderer.js?v=20260605-fit-ratios";
+} from "./poster-renderer.js?v=20260605-responsive-ratios";
 
 const form = document.querySelector("#generateForm");
 const profileInput = document.querySelector("#profileInput");
@@ -84,7 +83,7 @@ const I18N = {
     originalHighResolution: "原始尺寸",
     ratioThreeFour: "3:4 竖版",
     ratioNineSixteen: "9:16 竖版",
-    originalReadable: "默认保留完整长图，也可导出 3:4 或 9:16 竖版完整适配。",
+    originalReadable: "默认保留完整长图，3:4 和 9:16 会按比例重新排版。",
     colorScale: "主题色阶",
     basedOnPublicCounts: "基于公开贡献数量生成。",
     options: "选项",
@@ -154,7 +153,7 @@ const I18N = {
     originalHighResolution: "Original size",
     ratioThreeFour: "3:4 portrait",
     ratioNineSixteen: "9:16 portrait",
-    originalReadable: "Default keeps the full poster. 3:4 and 9:16 exports keep the complete poster visible.",
+    originalReadable: "Default keeps the full poster. 3:4 and 9:16 use ratio-aware layouts.",
     colorScale: "Color scale",
     basedOnPublicCounts: "Based on public contribution counts.",
     options: "Options",
@@ -326,7 +325,7 @@ async function generateBrowserPoster(payload) {
     },
     avatarDataUrl
   });
-  const svg = formatPosterSvg(renderPosterSvg(data), payload.outputSize);
+  const svg = renderPosterSvg(data, payload.outputSize);
   const svgUrl = createSvgObjectUrl(svg);
   const pngUrl = await svgToPngObjectUrl(svg, 2);
   const summary = summarizePoster(data);

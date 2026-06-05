@@ -99,7 +99,7 @@ const COPY = {
   }
 };
 
-export function renderPosterSvg(data) {
+export function renderPosterSvg(data, outputSize = "original") {
   const years = data.years;
   const palette = data.palette ?? DEFAULT_PALETTE;
   const options = {
@@ -119,6 +119,21 @@ export function renderPosterSvg(data) {
     years.flatMap((year) => year.days.map((day) => day.contributionCount))
   );
   const summary = summarize(data);
+  const context = {
+    years,
+    palette,
+    options,
+    copy,
+    displayYears,
+    yearByNumber,
+    thresholds,
+    summary,
+    lang
+  };
+
+  if (OUTPUT_PRESETS[outputSize]) {
+    return renderResponsivePosterSvg(data, outputSize, context);
+  }
 
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}">`,
@@ -162,6 +177,324 @@ export function formatPosterSvg(svg, outputSize = "original") {
     "</g>",
     "</svg>"
   ].join("");
+}
+
+function renderResponsivePosterSvg(data, outputSize, context) {
+  const preset = OUTPUT_PRESETS[outputSize];
+  const layout = responsiveLayout(outputSize, preset, context.displayYears.length);
+  const parts = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-output-size="${outputSize}" data-responsive-layout="true">`,
+    defs(),
+    rect(0, 0, layout.width, layout.height, "#ffffff"),
+    responsiveHeader(data, context, layout),
+    context.options.showYearlyTotals
+      ? responsiveYearlyBars(context.years, context.summary, layout.margin, layout.barsY, layout.innerWidth, layout.barsHeight)
+      : responsiveLegend(context.thresholds, context.palette, layout.margin, layout.barsY + 6, context.copy, layout)
+  ];
+
+  context.displayYears.forEach((year, index) => {
+    const row = Math.floor(index / layout.columns);
+    const column = index % layout.columns;
+    const previousYear = context.yearByNumber.get(year.year - 1) ?? null;
+    const x = layout.margin + column * (layout.cardWidth + layout.gapX);
+    const y = layout.yearsTop + row * (layout.cardHeight + layout.gapY);
+    parts.push(responsiveYearBlock(year, previousYear, context.thresholds, x, y, layout.cardWidth, layout.cardHeight, context.palette, context.options, context.copy, context.lang, layout));
+  });
+
+  parts.push(responsiveFooter(data, context.thresholds, layout, context.palette, context.copy));
+  parts.push("</svg>");
+  return parts.join("");
+}
+
+function responsiveLayout(outputSize, preset, yearCount) {
+  const isStory = outputSize === "ratio-9-16";
+  const columns = isStory ? (yearCount > 20 ? 2 : 1) : (yearCount > 18 ? 3 : 2);
+  const margin = isStory ? 72 : 56;
+  const headerHeight = isStory ? 350 : 306;
+  const footerHeight = isStory ? 116 : 86;
+  const gapX = columns === 1 ? 0 : isStory ? 28 : 28;
+  const gapY = isStory ? 10 : 14;
+  const rows = Math.max(1, Math.ceil(yearCount / columns));
+  const innerWidth = preset.width - margin * 2;
+  const cardWidth = (innerWidth - gapX * (columns - 1)) / columns;
+  const footerTop = preset.height - footerHeight;
+  const yearsTop = headerHeight;
+  const cardHeight = (footerTop - yearsTop - gapY * (rows - 1)) / rows;
+
+  return {
+    outputSize,
+    width: preset.width,
+    height: preset.height,
+    isStory,
+    columns,
+    rows,
+    margin,
+    innerWidth,
+    headerHeight,
+    footerHeight,
+    footerTop,
+    yearsTop,
+    gapX,
+    gapY,
+    cardWidth,
+    cardHeight,
+    barsY: isStory ? 282 : 236,
+    barsHeight: isStory ? 48 : 42
+  };
+}
+
+function responsiveHeader(data, context, layout) {
+  const { summary, palette, options, copy } = context;
+  const displayName = data.name || data.login;
+  const title = data.title || `${displayName}${copy.titleSuffix}`;
+  const joined = formatDate(data.createdAt);
+  const range = `${data.years[0].year} - ${data.years[data.years.length - 1].year}`;
+  const sourceLabel = data.source === "public" ? copy.publicSource : copy.graphqlSource;
+  const avatarSize = layout.isStory ? 92 : 76;
+  const top = layout.isStory ? 54 : 42;
+  const titleX = layout.margin + avatarSize + 24;
+  const qrSize = layout.isStory ? 112 : 92;
+  const qrX = layout.width - layout.margin - qrSize;
+  const qrY = layout.isStory ? 42 : 36;
+  const metricY = layout.isStory ? 178 : 148;
+  const metricGap = layout.isStory ? 18 : 14;
+  const metricHeight = layout.isStory ? 70 : 58;
+  const metricWidth = (layout.innerWidth - metricGap * 3) / 4;
+
+  return [
+    avatarMarkup(data, layout.margin, top, avatarSize),
+    text(title, titleX, top + 32, {
+      size: layout.isStory ? 44 : 36,
+      weight: 850,
+      fill: "#24292f"
+    }),
+    text(`@${data.login}  ${copy.joined} ${joined}  ${copy.tracked} ${range}`, titleX, top + 66, {
+      size: layout.isStory ? 18 : 15,
+      fill: "#57606a"
+    }),
+    text(`${copy.subtitlePrefix} ${sourceLabel}`, titleX, top + 96, {
+      size: layout.isStory ? 15 : 13,
+      fill: "#6e7781"
+    }),
+    options.showQrCode ? realQr("https://gitgreen.me", palette, qrX, qrY, qrSize, copy.qrLabel) : "",
+    responsiveMetricCard(layout.margin, metricY, metricWidth, metricHeight, copy.totalContributions, formatNumber(summary.total), copy.acrossYears, layout),
+    responsiveMetricCard(layout.margin + (metricWidth + metricGap), metricY, metricWidth, metricHeight, copy.activeDays, formatNumber(summary.activeDays), copy.daysWithContributions, layout),
+    responsiveMetricCard(layout.margin + (metricWidth + metricGap) * 2, metricY, metricWidth, metricHeight, copy.bestYear, `${summary.bestYear.year}`, `${formatNumber(summary.bestYear.totalContributions)} ${copy.contributions}`, layout),
+    responsiveMetricCard(layout.margin + (metricWidth + metricGap) * 3, metricY, metricWidth, metricHeight, copy.bestDay, summary.bestDay.date || "n/a", `${formatNumber(summary.bestDay.contributionCount)} ${copy.contributions}`, layout),
+    context.options.showYearlyTotals ? text(copy.yearlyTotals, layout.margin, layout.barsY - 8, {
+      size: layout.isStory ? 13 : 12,
+      weight: 800,
+      fill: "#57606a"
+    }) : ""
+  ].join("");
+}
+
+function responsiveMetricCard(x, y, width, height, label, value, caption, layout) {
+  return [
+    rect(x, y, width, height, "#f6f8fa", "#d0d7de", 1, 8),
+    text(label, x + 14, y + 22, { size: layout.isStory ? 12 : 10, weight: 800, fill: "#57606a" }),
+    text(value, x + 14, y + height - 14, { size: layout.isStory ? 24 : 20, weight: 850, fill: "#24292f" }),
+    layout.isStory ? text(caption, x + width - 14, y + height - 16, {
+      size: 10,
+      fill: "#6e7781",
+      anchor: "end"
+    }) : ""
+  ].join("");
+}
+
+function responsiveYearlyBars(years, summary, x, y, width, height) {
+  const max = Math.max(1, summary.bestYear.totalContributions);
+  const gap = Math.max(4, Math.min(9, width / years.length / 9));
+  const barWidth = Math.max(6, (width - gap * (years.length - 1)) / years.length);
+  const parts = [
+    line(x, y + height, x + width, y + height, "#d8dee4", 1)
+  ];
+
+  years.forEach((year, index) => {
+    const barHeight = Math.max(2, (year.totalContributions / max) * (height - 14));
+    const barX = x + index * (barWidth + gap);
+    const barY = y + height - barHeight;
+    parts.push(rect(barX, barY, barWidth, barHeight, year.isPartial ? "#54aeff" : "#2da44e", null, 1, 4));
+    if (years.length <= 18 || index % 2 === 0) {
+      parts.push(text(String(year.year), barX + barWidth / 2, y + height + 16, {
+        size: 9,
+        fill: "#6e7781",
+        anchor: "middle"
+      }));
+    }
+  });
+
+  return parts.join("");
+}
+
+function responsiveYearBlock(year, previousYear, thresholds, x, y, width, height, palette, options, copy, lang, layout) {
+  const compact = layout.columns > 1;
+  const total = year.totalContributions;
+  const delta = previousYear ? total - previousYear.totalContributions : null;
+  const deltaLabel = previousYear ? formatDelta(delta, previousYear.totalContributions, copy) : copy.firstTrackedYear;
+  const deltaFill = delta === null ? "#6e7781" : delta >= 0 ? "#1a7f37" : "#cf222e";
+  const leftWidth = compact ? Math.min(86, width * 0.19) : 160;
+  const statsWidth = compact ? 0 : 178;
+  const gridX = x + leftWidth + (compact ? 10 : 24);
+  const gridY = y + (compact ? 42 : 34);
+  const gridMaxWidth = width - leftWidth - statsWidth - (compact ? 12 : 46);
+  const gridMaxHeight = Math.max(36, height - (compact ? 76 : 54));
+  const grid = responsiveGridMetrics(gridMaxWidth, gridMaxHeight);
+  const gridWidth = grid.step * 53 - grid.gap;
+  const gridHeight = grid.step * 7 - grid.gap;
+  const statsY = compact ? y + height - 17 : y + 48;
+  const lineY = y + height + layout.gapY / 2;
+
+  return [
+    line(x, y + 1, x + width, y + 1, "#d8dee4", 0.8),
+    text(String(year.year), x, y + (compact ? 24 : 28), {
+      size: compact ? 22 : 28,
+      weight: 850,
+      fill: "#24292f"
+    }),
+    text(formatNumber(total), x, y + (compact ? 50 : 58), {
+      size: compact ? 15 : 18,
+      weight: 850,
+      fill: "#24292f"
+    }),
+    text(compact ? copy.contributions : deltaLabel, x, y + (compact ? 68 : 82), {
+      size: compact ? 9 : 11,
+      weight: compact ? 700 : 800,
+      fill: compact ? "#6e7781" : deltaFill
+    }),
+    options.showMonthLabels ? responsiveMonthLabels(year, gridX, gridY - (compact ? 10 : 12), grid, lang, compact) : "",
+    responsiveContributionGrid(year, thresholds, palette, gridX, gridY, grid),
+    compact
+      ? text(`${formatNumber(year.activeDays)} ${copy.days}  ·  ${copy.maxDay} ${formatNumber(year.maxDay.contributionCount)}`, gridX, statsY, {
+        size: 9,
+        weight: 700,
+        fill: "#57606a"
+      })
+      : [
+        text(`${formatNumber(year.activeDays)} ${copy.days}`, x + width - statsWidth, statsY, {
+          size: 13,
+          weight: 850,
+          fill: "#24292f"
+        }),
+        text(`${copy.maxDay} ${formatNumber(year.maxDay.contributionCount)}`, x + width - statsWidth, statsY + 24, {
+          size: 12,
+          weight: 750,
+          fill: "#57606a"
+        }),
+        text(deltaLabel, x + width - statsWidth, statsY + 48, {
+          size: 11,
+          weight: 800,
+          fill: deltaFill
+        })
+      ].join(""),
+    line(x, lineY, x + width, lineY, "#f6f8fa", 0.8),
+    compact ? "" : rect(gridX, gridY + gridHeight + 12, gridWidth, 1, "#f6f8fa")
+  ].join("");
+}
+
+function responsiveGridMetrics(maxWidth, maxHeight) {
+  const step = Math.max(2, Math.min(maxWidth / 53, maxHeight / 7));
+  const gap = Math.max(0.7, step * 0.15);
+  const cell = Math.max(1.4, step - gap);
+  return { step, gap, cell };
+}
+
+function responsiveMonthLabels(year, x, y, grid, lang, compact) {
+  const parts = [];
+  let lastMonth = -1;
+  let lastX = -100;
+  const minGap = compact ? grid.step * 6 : grid.step * 4.6;
+
+  year.weeks.forEach((week, weekIndex) => {
+    for (const day of week.contributionDays) {
+      const date = new Date(`${day.date}T00:00:00Z`);
+      const month = date.getUTCMonth();
+      const dayOfMonth = date.getUTCDate();
+      const labelX = x + weekIndex * grid.step;
+
+      if (dayOfMonth <= 7 && month !== lastMonth && labelX - lastX > minGap) {
+        parts.push(text(MONTHS[lang][month], labelX, y, {
+          size: compact ? 6.5 : 8,
+          fill: "#8c959f"
+        }));
+        lastMonth = month;
+        lastX = labelX;
+      }
+    }
+  });
+
+  return parts.join("");
+}
+
+function responsiveContributionGrid(year, thresholds, palette, x, y, grid) {
+  const parts = [];
+
+  year.weeks.forEach((week, weekIndex) => {
+    week.contributionDays.forEach((day) => {
+      const cellX = x + weekIndex * grid.step;
+      const cellY = y + day.weekday * grid.step;
+      const level = contributionLevel(day.contributionCount, thresholds);
+      parts.push(rect(cellX, cellY, grid.cell, grid.cell, palette[level], null, 1, Math.min(2, grid.cell / 3)));
+    });
+  });
+
+  return parts.join("");
+}
+
+function responsiveFooter(data, thresholds, layout, palette, copy) {
+  const current = data.years.find((year) => year.isPartial);
+  const partialText = current ? ` ${current.year} ${copy.partialFooter} ${formatDate(current.to)}.` : "";
+  const sourceText = data.source === "public" ? copy.generatedPublic : copy.generatedGraphql;
+  const y = layout.footerTop + 26;
+
+  return [
+    line(layout.margin, layout.footerTop + 6, layout.width - layout.margin, layout.footerTop + 6, "#d8dee4", 1),
+    responsiveLegend(thresholds, palette, layout.margin, y, copy, layout),
+    text(`${sourceText} ${copy.generated} ${formatDate(data.generatedAt)}.${partialText}`, layout.margin, layout.height - 20, {
+      size: layout.isStory ? 12 : 10,
+      fill: "#57606a"
+    }),
+    text("GitGreen Studio", layout.width - layout.margin, layout.height - 20, {
+      size: layout.isStory ? 12 : 10,
+      weight: 850,
+      fill: "#24292f",
+      anchor: "end"
+    })
+  ].join("");
+}
+
+function responsiveLegend(thresholds, palette, x, y, copy, layout) {
+  const swatch = layout.isStory ? 16 : 14;
+  const gap = layout.isStory ? 7 : 6;
+  const startX = x + 34;
+  const parts = [
+    text(copy.less, x, y + swatch - 2, { size: layout.isStory ? 10 : 9, fill: "#6e7781" })
+  ];
+
+  palette.forEach((color, index) => {
+    parts.push(rect(startX + index * (swatch + gap), y, swatch, swatch, color, "#ffffff", 0.8, 2));
+  });
+
+  parts.push(text(copy.more, startX + palette.length * (swatch + gap) + 8, y + swatch - 2, {
+    size: layout.isStory ? 10 : 9,
+    fill: "#6e7781"
+  }));
+
+  if (layout.isStory) {
+    const labels = [
+      "0",
+      `1-${thresholds[0]}`,
+      `${thresholds[0] + 1}-${thresholds[1]}`,
+      `${thresholds[1] + 1}-${thresholds[2]}`,
+      `${thresholds[2] + 1}+`
+    ];
+    parts.push(text(`${copy.scale}: ${labels.join(" / ")}`, x, y + swatch + 24, {
+      size: 9,
+      fill: "#8c959f"
+    }));
+  }
+
+  return parts.join("");
 }
 
 export async function writePosterFiles({ svg, outPath, format, pixelRatio }) {

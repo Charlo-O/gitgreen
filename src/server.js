@@ -8,7 +8,7 @@ import {
   fetchPublicGithubContributionData,
   normalizeGithubLogin
 } from "./github.js";
-import { formatPosterSvg, renderPosterSvg, writePosterFiles } from "./render.js";
+import { renderPosterSvg, writePosterFiles } from "./render.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
@@ -85,7 +85,7 @@ app.post("/api/generate", async (request, response) => {
       ? await fetchAvatarDataUrl(data.avatarUrl).catch(() => null)
       : null;
 
-    const svg = formatPosterSvg(renderPosterSvg(data), outputSize);
+    const svg = renderPosterSvg(data, outputSize);
     const id = `${data.login}-${new Date().toISOString().replace(/[:.]/g, "-")}-${crypto
       .randomBytes(3)
       .toString("hex")}`;
