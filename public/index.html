@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitGreen Studio</title>
+    <link rel="icon" href="/icons/grid-3x3.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><span class="icon" style="--icon: url('/icons/grid-3x3.svg')"></span></span>
+          <div>
+            <strong>GitGreen Studio</strong>
+            <span data-i18n="brandSubtitle">GitHub 贡献海报</span>
+          </div>
+        </div>
+
+        <form class="generate-form" id="generateForm">
+          <label class="profile-field">
+            <span data-i18n="pasteProfile">粘贴 GitHub 主页</span>
+            <input
+              id="profileInput"
+              name="profile"
+              type="text"
+              value="https://github.com/torvalds"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <span class="field-icon icon" style="--icon: url('/icons/check.svg')"></span>
+          </label>
+          <button class="primary-button" id="generateButton" type="submit">
+            <span class="button-label" data-i18n="generatePoster">生成海报</span>
+            <span class="button-loader icon" style="--icon: url('/icons/loader-circle.svg')"></span>
+          </button>
+        </form>
+
+        <div class="fetch-status" id="fetchStatus">
+          <span class="status-dot"></span>
+          <div>
+            <strong data-i18n="readyPublicData">准备抓取公开数据</strong>
+            <span data-i18n="noTokenRequired">无需 Token</span>
+          </div>
+        </div>
+
+        <div class="privacy-pill">
+          <span class="icon" style="--icon: url('/icons/lock.svg')"></span>
+          <span data-i18n="publicOnly">仅公开数据</span>
+        </div>
+      </header>
+
+      <aside class="workflow-panel">
+        <div class="step-line"></div>
+        <section class="workflow-step done" data-step="input">
+          <span class="step-badge">1</span>
+          <div>
+            <div class="step-title" data-i18n="stepInput">输入</div>
+            <dl>
+              <dt data-i18n="profile">主页</dt>
+              <dd id="stepProfile">torvalds</dd>
+              <dt data-i18n="years">年份</dt>
+              <dd id="stepYears" data-i18n="waiting">等待中</dd>
+            </dl>
+          </div>
+          <span class="step-check icon" style="--icon: url('/icons/check.svg')"></span>
+        </section>
+
+        <section class="workflow-step" data-step="fetch">
+          <span class="step-badge">2</span>
+          <div>
+            <div class="step-title" data-i18n="stepFetch">抓取</div>
+            <dl>
+              <dt data-i18n="source">来源</dt>
+              <dd data-i18n="githubPublicApi">GitHub 公开数据</dd>
+              <dt data-i18n="status">状态</dt>
+              <dd id="stepStatus" data-i18n="ready">就绪</dd>
+            </dl>
+          </div>
+          <span class="step-check icon" style="--icon: url('/icons/check.svg')"></span>
+        </section>
+
+        <section class="workflow-step" data-step="compose">
+          <span class="step-badge">3</span>
+          <div>
+            <div class="step-title" data-i18n="stepCompose">合成</div>
+            <dl>
+              <dt data-i18n="layout">布局</dt>
+              <dd data-i18n="yearlyHeatmapStack">年度热力图堆叠</dd>
+              <dt data-i18n="scale">色阶</dt>
+              <dd id="stepPalette">GitHub 绿色</dd>
+            </dl>
+          </div>
+          <span class="step-check icon" style="--icon: url('/icons/check.svg')"></span>
+        </section>
+
+        <section class="workflow-step" data-step="export">
+          <span class="step-badge dark">4</span>
+          <div>
+            <div class="step-title" data-i18n="stepExport">导出</div>
+            <dl>
+              <dt data-i18n="readyLabel">就绪</dt>
+              <dd id="stepExport" data-i18n="generateFirst">先生成</dd>
+            </dl>
+          </div>
+          <span class="step-check icon" style="--icon: url('/icons/check.svg')"></span>
+        </section>
+
+        <div class="public-note">
+          <div class="note-title">
+            <span class="icon" style="--icon: url('/icons/globe.svg')"></span>
+            <span data-i18n="publicOnly">仅公开数据</span>
+          </div>
+          <p data-i18n="publicNote">这张海报只使用 GitHub 公开贡献数据，不需要私有数据或 Token。</p>
+        </div>
+      </aside>
+
+      <main class="studio-canvas">
+        <div class="canvas-header">
+          <div>
+            <strong data-i18n="poster">海报</strong>
+            <span id="exportBadge" data-i18n="waitingInput">等待输入</span>
+          </div>
+        </div>
+
+        <div class="ruler ruler-x">
+          <span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span><span>1400</span>
+        </div>
+        <div class="ruler ruler-y">
+          <span>0</span><span>400</span><span>800</span><span>1200</span><span>1600</span><span>2000</span><span>2400</span><span>2800</span>
+        </div>
+
+        <section class="artboard-viewport">
+          <div class="artboard" id="artboard">
+            <div class="empty-preview" id="emptyPreview">
+              <span class="icon" style="--icon: url('/icons/image.svg')"></span>
+              <strong data-i18n="posterPreview">海报预览</strong>
+              <p data-i18n="emptyPreviewText">粘贴公开 GitHub 主页，生成年度贡献长图。</p>
+            </div>
+            <img id="posterPreview" alt="Generated GitHub contribution poster preview" hidden />
+          </div>
+        </section>
+
+        <div class="zoom-controls">
+          <button type="button" id="zoomOut" aria-label="Zoom out">
+            <img src="/icons/minus.svg" alt="" />
+          </button>
+          <span id="zoomLabel">72%</span>
+          <button type="button" id="zoomIn" aria-label="Zoom in">
+            <img src="/icons/plus.svg" alt="" />
+          </button>
+          <button type="button" id="fitWidth">
+            <img src="/icons/maximize.svg" alt="" />
+            <span data-i18n="fitToWidth">适应宽度</span>
+          </button>
+        </div>
+      </main>
+
+      <aside class="settings-panel">
+        <h2 data-i18n="posterSettings">海报设置</h2>
+
+        <label class="setting-field">
+          <span data-i18n="language">语言</span>
+          <select id="languageSelect">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+
+        <label class="setting-field">
+          <span data-i18n="title">标题</span>
+          <input id="titleInput" type="text" value="GitHub 贡献" maxlength="64" />
+        </label>
+
+        <label class="setting-field">
+          <span data-i18n="subtitle">副标题</span>
+          <input id="subtitleInput" type="text" value="基于公开贡献生成" disabled data-i18n-value="subtitleValue" />
+        </label>
+
+        <div class="date-range">
+          <span data-i18n="dateRange">日期范围</span>
+          <div>
+            <input id="startYearInput" value="-" disabled />
+            <em></em>
+            <input id="endYearInput" value="-" disabled />
+          </div>
+          <small id="yearCountLabel" data-i18n="generatedAfterFetch">生成后显示</small>
+        </div>
+
+        <label class="setting-field">
+          <span data-i18n="outputSize">输出尺寸</span>
+          <select id="outputSize">
+            <option data-i18n="originalHighResolution">原始高清</option>
+            <option data-i18n="socialCrop">1080 x 2160 社交长图</option>
+            <option data-i18n="webExport">1440 px 网页导出</option>
+          </select>
+          <small data-i18n="originalReadable">原始尺寸能保持每一年都清晰可读。</small>
+        </label>
+
+        <fieldset class="palette-group">
+          <legend data-i18n="colorScale">主题色阶</legend>
+          <label class="palette-option selected">
+            <input type="radio" name="palette" value="github" checked />
+            <span class="dot"></span>
+            <span class="swatches github"></span>
+          </label>
+          <label class="palette-option">
+            <input type="radio" name="palette" value="ocean" />
+            <span class="dot"></span>
+            <span class="swatches ocean"></span>
+          </label>
+          <label class="palette-option">
+            <input type="radio" name="palette" value="violet" />
+            <span class="dot"></span>
+            <span class="swatches violet"></span>
+          </label>
+          <small data-i18n="basedOnPublicCounts">基于公开贡献数量生成。</small>
+        </fieldset>
+
+        <fieldset class="options-group">
+          <legend data-i18n="options">选项</legend>
+          <label>
+            <input id="monthLabelsInput" type="checkbox" checked />
+            <span data-i18n="showMonthLabels">显示月份标签</span>
+          </label>
+          <label>
+            <input id="totalsInput" type="checkbox" checked />
+            <span data-i18n="showYearlyTotals">显示年度总览</span>
+          </label>
+        </fieldset>
+
+        <div class="download-stack">
+          <a class="download-button disabled" id="downloadPng" href="#" download>
+            <span class="icon" style="--icon: url('/icons/download.svg')"></span>
+            <span data-i18n="downloadPng">下载 PNG</span>
+          </a>
+          <a class="download-button secondary disabled" id="downloadSvg" href="#" download>
+            <span class="icon" style="--icon: url('/icons/download.svg')"></span>
+            <span data-i18n="downloadSvg">下载 SVG</span>
+          </a>
+          <small data-i18n="downloadNote">高清输出 · 仅公开数据</small>
+        </div>
+      </aside>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "github-contrib-poster",
+  "version": "0.1.0",
+  "description": "Generate a long poster comparing GitHub contributions year by year.",
+  "type": "module",
+  "bin": {
+    "github-contrib-poster": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node ./src/server.js",
+    "web": "node ./src/server.js",
+    "poster": "node ./src/cli.js",
+    "help": "node ./src/cli.js --help",
+    "demo": "node ./src/cli.js --demo --out ./dist/demo-github-contributions.png"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "lucide-static": "^1.17.0",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.33.5"
+  }
+}
