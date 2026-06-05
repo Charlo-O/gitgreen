@@ -544,7 +544,17 @@ function assetUrl(value) {
 function shouldUseBrowserGenerator() {
   return window.GITGREEN_FORCE_BROWSER_GENERATOR === true
     || new URLSearchParams(window.location.search).has("static")
+    || isLocalStaticPreviewHost()
     || isStaticPagesHost();
+}
+
+function isLocalStaticPreviewHost() {
+  if (API_BASE_URL) {
+    return false;
+  }
+
+  const localHosts = ["127.0.0.1", "localhost", "::1"];
+  return localHosts.includes(window.location.hostname) && window.location.port !== "4173";
 }
 
 function isStaticPagesHost() {
