@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node ./src/server.js",
     "web": "node ./src/server.js",
+    "build:pages": "node ./scripts/build-pages.js",
     "poster": "node ./src/cli.js",
     "help": "node ./src/cli.js --help",
     "demo": "node ./src/cli.js --demo --out ./dist/demo-github-contributions.png"
